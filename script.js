@@ -6,16 +6,16 @@
     3.00 - Lighting, Materials, and Post-Processing
     4.00 - Inventory System UI and Logic
     5.00 - Phone Controls and Input
-    6.00 - Zoom Toggle Logic
-    7.00 - Jetpack and Jump Controls
-    8.00 - Game Loop and Rendering
-    9.00 - Debugging and Loader
+    6.00 - Jump and Jetpack Controls
+    7.00 - Game Loop and Rendering
+    8.00 - Debugging and Loader
 */
 
 // - - - >> 1.00 - Initialization and Scene Setup
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
 // 1.00.00
+const GAME_VERSION = 'v0.01';
 const scene = new THREE.Scene();
 
 // 1.00.01
@@ -61,6 +61,7 @@ class Planetoid {
 // 2.00.02
     generate() {
         try {
+            logDebug('Generating planetoid...');
             const icosahedron = new THREE.IcosahedronGeometry(this.radius, this.subdivisionLevel);
             const vertices = icosahedron.vertices;
             const blockRadius = this.radius * 0.05;
@@ -74,14 +75,12 @@ class Planetoid {
                 const key = `${blockPos.x.toFixed(2)},${blockPos.y.toFixed(2)},${blockPos.z.toFixed(2)}`;
                 if (!blockPositions.has(key)) {
                     blockPositions.add(key);
-
                     const blockColor = colors[Math.floor(perlinNoise(vertex.x, vertex.y, vertex.z) * colors.length)];
                     const blockMaterial = new THREE.MeshPhongMaterial({ color: blockColor, flatShading: true });
                     const blockMesh = new THREE.Mesh(hexGeometry, blockMaterial);
                     blockMesh.position.copy(blockPos);
                     blockMesh.lookAt(this.group.position);
                     blockMesh.rotateX(Math.PI / 2);
-
                     this.group.add(blockMesh);
                     this.blocks.push(blockMesh);
                 }
@@ -93,6 +92,7 @@ class Planetoid {
     }
 }
 // 2.00.04 - Create a single planetoid for testing
+logDebug('Creating planetoid instance...');
 const testPlanet = new Planetoid(100, 2, new THREE.Vector3(0, 0, 0));
 
 // - - - >> 3.00 - Lighting, Materials, and Post-Processing
@@ -250,73 +250,60 @@ window.addEventListener('touchmove', (event) => {
         lookTouch.set(touch.clientX, touch.clientY);
     }
 }, { passive: false });
-// 5.00.05 - Jump button listener
-const jumpButton = document.getElementById('zoom-toggle'); // Reusing the zoom button for jump for now
+
+// - - - >> 6.00 - Jump and Jetpack Controls
+// 6.00.00
+const jumpButton = document.getElementById('jump-button');
+const jetpackButton = document.getElementById('jetpack-button');
+let jetpackActive = false;
+// 6.00.01 - Jump listener
 jumpButton.addEventListener('click', () => {
     if (player.isGrounded) {
+        logDebug('Player jump initiated.');
         const up = player.position.clone().sub(testPlanet.group.position).normalize();
         player.velocity.add(up.multiplyScalar(player.jumpVelocity));
         player.isGrounded = false;
     }
 });
-
-// - - - >> 6.00 - Zoom Toggle Logic
-// 6.00.00
-const zoomToggleButton = document.getElementById('zoom-toggle');
-function toggleZoom() {
-    zoomEnabled = !zoomEnabled;
-    document.documentElement.style.touchAction = zoomEnabled ? 'auto' : 'none';
-    if (zoomEnabled) {
-        zoomToggleButton.classList.remove('locked');
-    } else {
-        zoomToggleButton.classList.add('locked');
-    }
-}
-// 6.00.01
-
-// - - - >> 7.00 - Jetpack and Jump Controls
-// 7.00.00
-const jetpackButton = document.getElementById('jetpack-button');
-let jetpackActive = false;
+// 6.00.02 - Jetpack listeners
 jetpackButton.addEventListener('touchstart', (event) => {
     event.preventDefault();
     jetpackActive = true;
+    logDebug('Jetpack active.');
 });
-// 7.00.01
+// 6.00.03
 jetpackButton.addEventListener('touchend', () => {
     jetpackActive = false;
+    logDebug('Jetpack inactive.');
 });
 
-// - - - >> 8.00 - Game Loop and Rendering
-// 8.00.00
+// - - - >> 7.00 - Game Loop and Rendering
+// 7.00.00
 const gravityForce = 0.05;
 let lastTime = 0;
-
-// 8.00.01
+// 7.00.01
 function checkCollisions() {
     const playerRadialPosition = player.position.clone().sub(testPlanet.group.position);
     const playerDistanceToCenter = playerRadialPosition.length();
     const surfaceRadius = testPlanet.radius;
     
-    // 8.00.02
+    // 7.00.02
     if (playerDistanceToCenter - player.height / 2 <= surfaceRadius) {
         player.position.copy(playerRadialPosition.normalize().multiplyScalar(surfaceRadius + player.height / 2).add(testPlanet.group.position));
         player.velocity.set(0, 0, 0);
         player.isGrounded = true;
     }
 }
-// 8.00.03
+// 7.00.03
 function animate(time) {
     requestAnimationFrame(animate);
     const deltaTime = (time - lastTime) / 1000;
     lastTime = time;
-
-    // 8.00.04
+    // 7.00.04
     const up = player.position.clone().sub(testPlanet.group.position).normalize();
     const forward = camera.getWorldDirection(new THREE.Vector3());
     const right = new THREE.Vector3().crossVectors(forward, up).normalize();
-    
-    // 8.00.05
+    // 7.00.05
     const moveDirection = new THREE.Vector3();
     if (moveJoystickActive) {
         const joystickVector = new THREE.Vector2().subVectors(moveTouch, moveJoystickCenter).normalize();
@@ -324,10 +311,9 @@ function animate(time) {
         moveDirection.add(forward.clone().multiplyScalar(joystickVector.y));
         moveDirection.normalize().multiplyScalar(player.speed);
     }
-    // 8.00.06
+    // 7.00.06
     player.position.add(moveDirection);
-
-    // 8.00.07
+    // 7.00.07
     if (lookJoystickActive) {
         const dx = lookTouch.x - lookJoystickCenter.x;
         const dy = lookTouch.y - lookJoystickCenter.y;
@@ -336,8 +322,7 @@ function animate(time) {
         const tempQuaternion = new THREE.Quaternion().setFromUnitVectors(up, camera.up);
         camera.quaternion.multiplyQuaternions(tempQuaternion, camera.quaternion);
     }
-
-    // 8.00.08
+    // 7.00.08
     if (jetpackActive) {
         player.velocity.add(up.clone().multiplyScalar(player.jetpackAcceleration));
         if (player.velocity.length() > player.jetpackSpeed) {
@@ -347,20 +332,22 @@ function animate(time) {
         const gravity = up.clone().negate().multiplyScalar(gravityForce);
         player.velocity.add(gravity);
     }
-    // 8.00.09
+    // 7.00.09
     player.position.add(player.velocity);
     checkCollisions();
-    
-    // 8.00.10
+    // 7.00.10
     camera.position.copy(player.position);
     renderer.render(scene, camera);
 }
 animate();
 
-// - - - >> 9.00 - Debugging and Loader
-// 9.00.00
+// - - - >> 8.00 - Debugging and Loader
+// 8.00.00
 const loaderScreen = document.getElementById('loading-screen');
 const debugOutput = document.getElementById('debug-output');
+const versionDisplay = document.getElementById('version-display');
+versionDisplay.textContent = `Version: ${GAME_VERSION}`;
+// 8.00.01
 function logDebug(message) {
     if (debugOutput) {
         const p = document.createElement('p');
@@ -368,10 +355,21 @@ function logDebug(message) {
         debugOutput.appendChild(p);
         debugOutput.scrollTop = debugOutput.scrollHeight;
     }
+    console.log(message);
 }
-// 9.00.01
-setTimeout(() => {
+// 8.00.02
+const loadingManager = new THREE.LoadingManager();
+loadingManager.onProgress = function (item, loaded, total) {
+    logDebug(`Loading: ${item} (${loaded}/${total})`);
+};
+loadingManager.onLoad = function () {
+    logDebug('All assets loaded. Starting game.');
     loaderScreen.style.display = 'none';
-}, 2000); // Hide after 2 seconds to see initial logs
+};
+logDebug('Initializing game...');
+setTimeout(() => {
+    logDebug('Forcing loader hide. Game should be running.');
+    loaderScreen.style.display = 'none';
+}, 5000); // 5-second timeout to ensure loader hides.
 
 // https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
