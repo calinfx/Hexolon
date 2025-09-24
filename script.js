@@ -9,6 +9,7 @@
     6.00 - Zoom Toggle Logic
     7.00 - Jetpack and Jump Controls
     8.00 - Game Loop and Rendering
+    9.00 - Debugging and Loader
 */
 
 // - - - >> 1.00 - Initialization and Scene Setup
@@ -43,8 +44,6 @@ window.addEventListener('resize', () => {
 // - - - >> 2.00 - Planetoid Class Definition and Generation
 // 2.00.00 - A simple Perlin noise function for height variation
 function perlinNoise(x, y, z) {
-    // This is a placeholder for a real noise function.
-    // For now, a simple pseudo-random hash will do.
     const n = Math.sin(x * 12.9898 + y * 78.233 + z * 5.768) * 43758.5453;
     return n - Math.floor(n);
 }
@@ -61,32 +60,36 @@ class Planetoid {
     }
 // 2.00.02
     generate() {
-        const icosahedron = new THREE.IcosahedronGeometry(this.radius, this.subdivisionLevel);
-        const vertices = icosahedron.vertices;
-        const faces = icosahedron.faces;
-        const blockRadius = this.radius * 0.05;
-        const blockHeight = this.radius * 0.05;
-        const hexGeometry = new THREE.CylinderGeometry(blockRadius, blockRadius * 0.9, blockHeight, 6, 1, false);
-        const blockPositions = new Set();
-        const colors = [0x8A2BE2, 0x4B0082, 0x4169E1, 0x40E0D0, 0x00FFFF, 0x32CD32, 0xFFA500, 0xFF00FF];
+        try {
+            const icosahedron = new THREE.IcosahedronGeometry(this.radius, this.subdivisionLevel);
+            const vertices = icosahedron.vertices;
+            const blockRadius = this.radius * 0.05;
+            const blockHeight = this.radius * 0.05;
+            const hexGeometry = new THREE.CylinderGeometry(blockRadius, blockRadius * 0.9, blockHeight, 6, 1, false);
+            const blockPositions = new Set();
+            const colors = [0x8A2BE2, 0x4B0082, 0x4169E1, 0x40E0D0, 0x00FFFF, 0x32CD32, 0xFFA500, 0xFF00FF];
 // 2.00.03
-        vertices.forEach(vertex => {
-            const blockPos = vertex.clone().normalize().multiplyScalar(this.radius);
-            const key = `${blockPos.x.toFixed(2)},${blockPos.y.toFixed(2)},${blockPos.z.toFixed(2)}`;
-            if (!blockPositions.has(key)) {
-                blockPositions.add(key);
+            vertices.forEach(vertex => {
+                const blockPos = vertex.clone().normalize().multiplyScalar(this.radius);
+                const key = `${blockPos.x.toFixed(2)},${blockPos.y.toFixed(2)},${blockPos.z.toFixed(2)}`;
+                if (!blockPositions.has(key)) {
+                    blockPositions.add(key);
 
-                const blockColor = colors[Math.floor(perlinNoise(vertex.x, vertex.y, vertex.z) * colors.length)];
-                const blockMaterial = new THREE.MeshPhongMaterial({ color: blockColor, flatShading: true });
-                const blockMesh = new THREE.Mesh(hexGeometry, blockMaterial);
-                blockMesh.position.copy(blockPos);
-                blockMesh.lookAt(this.group.position);
-                blockMesh.rotateX(Math.PI / 2);
+                    const blockColor = colors[Math.floor(perlinNoise(vertex.x, vertex.y, vertex.z) * colors.length)];
+                    const blockMaterial = new THREE.MeshPhongMaterial({ color: blockColor, flatShading: true });
+                    const blockMesh = new THREE.Mesh(hexGeometry, blockMaterial);
+                    blockMesh.position.copy(blockPos);
+                    blockMesh.lookAt(this.group.position);
+                    blockMesh.rotateX(Math.PI / 2);
 
-                this.group.add(blockMesh);
-                this.blocks.push(blockMesh);
-            }
-        });
+                    this.group.add(blockMesh);
+                    this.blocks.push(blockMesh);
+                }
+            });
+            logDebug('Planetoid generated successfully.');
+        } catch (e) {
+            logDebug(`Error generating planetoid: ${e.message}`);
+        }
     }
 }
 // 2.00.04 - Create a single planetoid for testing
@@ -251,7 +254,6 @@ window.addEventListener('touchmove', (event) => {
 const jumpButton = document.getElementById('zoom-toggle'); // Reusing the zoom button for jump for now
 jumpButton.addEventListener('click', () => {
     if (player.isGrounded) {
-        // Player jumps "up" relative to the planet's surface
         const up = player.position.clone().sub(testPlanet.group.position).normalize();
         player.velocity.add(up.multiplyScalar(player.jumpVelocity));
         player.isGrounded = false;
@@ -270,7 +272,7 @@ function toggleZoom() {
         zoomToggleButton.classList.add('locked');
     }
 }
-// 6.00.01 - This is now the jump button, so it's handled in section 5.
+// 6.00.01
 
 // - - - >> 7.00 - Jetpack and Jump Controls
 // 7.00.00
@@ -292,7 +294,6 @@ let lastTime = 0;
 
 // 8.00.01
 function checkCollisions() {
-    // Check if player is on the surface of the test planet
     const playerRadialPosition = player.position.clone().sub(testPlanet.group.position);
     const playerDistanceToCenter = playerRadialPosition.length();
     const surfaceRadius = testPlanet.radius;
@@ -332,7 +333,6 @@ function animate(time) {
         const dy = lookTouch.y - lookJoystickCenter.y;
         camera.rotateOnAxis(up, -dx * player.rotationSpeed);
         camera.rotateOnAxis(right, -dy * player.rotationSpeed);
-        // Ensure the camera doesn't go below the horizon
         const tempQuaternion = new THREE.Quaternion().setFromUnitVectors(up, camera.up);
         camera.quaternion.multiplyQuaternions(tempQuaternion, camera.quaternion);
     }
@@ -356,5 +356,22 @@ function animate(time) {
     renderer.render(scene, camera);
 }
 animate();
+
+// - - - >> 9.00 - Debugging and Loader
+// 9.00.00
+const loaderScreen = document.getElementById('loading-screen');
+const debugOutput = document.getElementById('debug-output');
+function logDebug(message) {
+    if (debugOutput) {
+        const p = document.createElement('p');
+        p.textContent = message;
+        debugOutput.appendChild(p);
+        debugOutput.scrollTop = debugOutput.scrollHeight;
+    }
+}
+// 9.00.01
+setTimeout(() => {
+    loaderScreen.style.display = 'none';
+}, 2000); // Hide after 2 seconds to see initial logs
 
 // https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
