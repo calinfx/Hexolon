@@ -1,29 +1,24 @@
 // https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
-
-// Table of Contents:
-// 1. Initialization and Scene Setup
-// 2. Hexagonal Block Geometry
-// 3. World Generation and Chunking
-// 4. Lighting, Materials, and Post-Processing
-// 5. Inventory System UI and Logic
-// 6. Phone Controls and Input
-// 7. Zoom Toggle Logic
-// 8. Jetpack Controls
-// 9. Game Loop and Rendering
-
 /*
- * Codepen HexagonCraft Game
- * A Minecraft-like game with hexagonal blocks, first-person view,
- * phone controls, and a neon-infused night aesthetic.
- */
+    Table of Contents:
+    1.00 - Initialization and Scene Setup
+    2.00 - Planetoid Class Definition and Generation
+    3.00 - Lighting, Materials, and Post-Processing
+    4.00 - Inventory System UI and Logic
+    5.00 - Phone Controls and Input
+    6.00 - Zoom Toggle Logic
+    7.00 - Jetpack and Jump Controls
+    8.00 - Game Loop and Rendering
+*/
 
 // - - - >> 1.00 - Initialization and Scene Setup
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
 // 1.00.00
 const scene = new THREE.Scene();
 
 // 1.00.01
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.rotation.order = "YXZ";
 
 // 1.00.02
@@ -37,7 +32,6 @@ document.body.style.overflow = 'hidden';
 
 // 1.00.04
 scene.background = new THREE.Color(0x0a001a);
-camera.position.set(0, 10, 20);
 
 // 1.00.05
 window.addEventListener('resize', () => {
@@ -45,97 +39,64 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-// - - - >> 1.00 - ended section 1
 
-// - - - >> 2.02 - Hexagonal Block Geometry
-
-// 2.02.00
-function createHexagonalBlock(x, y, z, color) {
-    const radius = 5;
-    const height = 5;
-    const geometry = new THREE.CylinderGeometry(radius, radius, height, 6, 1, false);
-    const material = new THREE.MeshPhongMaterial({ color: color, flatShading: true });
-    const block = new THREE.Mesh(geometry, material);
-
-    // 2.02.01
-    const hexWidth = Math.sqrt(3) * radius;
-    const hexHeight = 1.5 * radius;
-
-    block.position.x = x * hexWidth + (z % 2) * (hexWidth / 2);
-    block.position.y = y * height;
-    block.position.z = z * hexHeight;
-
-    // 2.02.02
-    block.castShadow = true;
-    block.receiveShadow = true;
-    return block;
+// - - - >> 2.00 - Planetoid Class Definition and Generation
+// 2.00.00 - A simple Perlin noise function for height variation
+function perlinNoise(x, y, z) {
+    // This is a placeholder for a real noise function.
+    // For now, a simple pseudo-random hash will do.
+    const n = Math.sin(x * 12.9898 + y * 78.233 + z * 5.768) * 43758.5453;
+    return n - Math.floor(n);
 }
-// - - - >> 2.02 - ended section 2
+// 2.00.01 - Planetoid Class
+class Planetoid {
+    constructor(radius, subdivisionLevel, position) {
+        this.radius = radius;
+        this.subdivisionLevel = subdivisionLevel;
+        this.group = new THREE.Group();
+        this.group.position.copy(position);
+        scene.add(this.group);
+        this.blocks = [];
+        this.generate();
+    }
+// 2.00.02
+    generate() {
+        const icosahedron = new THREE.IcosahedronGeometry(this.radius, this.subdivisionLevel);
+        const vertices = icosahedron.vertices;
+        const faces = icosahedron.faces;
+        const blockRadius = this.radius * 0.05;
+        const blockHeight = this.radius * 0.05;
+        const hexGeometry = new THREE.CylinderGeometry(blockRadius, blockRadius * 0.9, blockHeight, 6, 1, false);
+        const blockPositions = new Set();
+        const colors = [0x8A2BE2, 0x4B0082, 0x4169E1, 0x40E0D0, 0x00FFFF, 0x32CD32, 0xFFA500, 0xFF00FF];
+// 2.00.03
+        vertices.forEach(vertex => {
+            const blockPos = vertex.clone().normalize().multiplyScalar(this.radius);
+            const key = `${blockPos.x.toFixed(2)},${blockPos.y.toFixed(2)},${blockPos.z.toFixed(2)}`;
+            if (!blockPositions.has(key)) {
+                blockPositions.add(key);
 
-// - - - >> 3.02 - World Generation and Chunking
+                const blockColor = colors[Math.floor(perlinNoise(vertex.x, vertex.y, vertex.z) * colors.length)];
+                const blockMaterial = new THREE.MeshPhongMaterial({ color: blockColor, flatShading: true });
+                const blockMesh = new THREE.Mesh(hexGeometry, blockMaterial);
+                blockMesh.position.copy(blockPos);
+                blockMesh.lookAt(this.group.position);
+                blockMesh.rotateX(Math.PI / 2);
 
-// 3.02.00
-const worldSizeOptions = [
-  { chunkSize: 8, worldSize: 2 },
-  { chunkSize: 10, worldSize: 3 },
-  { chunkSize: 12, worldSize: 4 }
-];
-const selectedSize = 0;
-const chunkSize = worldSizeOptions[selectedSize].chunkSize;
-const worldSize = worldSizeOptions[selectedSize].worldSize;
-
-// 3.02.01
-const world = new THREE.Group();
-scene.add(world);
-
-// 3.02.02
-function generateChunk(chunkX, chunkZ) {
-    const colors = [
-        0x8A2BE2, // Blue Violet (Purple)
-        0x4B0082, // Indigo (Dark Purple)
-        0x4169E1, // Royal Blue
-        0x40E0D0, // Turquoise
-        0x00FFFF, // Cyan
-        0x32CD32, // Lime Green
-        0xFFA500, // Orange
-    ];
-
-    for (let i = 0; i < chunkSize; i++) {
-        for (let j = 0; j < chunkSize; j++) {
-            const globalX = chunkX * chunkSize + i;
-            const globalZ = chunkZ * chunkSize + j;
-            const height = Math.floor(Math.random() * 3);
-
-            // 3.02.03
-            for (let k = 0; k <= height; k++) {
-                let blockColor;
-                if (Math.random() < 0.1) {
-                    blockColor = colors[Math.floor(Math.random() * 2) + 5]; // Neon green or Orange
-                } else {
-                    blockColor = colors[Math.floor(Math.random() * 5)]; // Purple/Turquoise range
-                }
-                const block = createHexagonalBlock(globalX, k, globalZ, new THREE.Color(blockColor));
-                world.add(block);
+                this.group.add(blockMesh);
+                this.blocks.push(blockMesh);
             }
-        }
+        });
     }
 }
+// 2.00.04 - Create a single planetoid for testing
+const testPlanet = new Planetoid(100, 2, new THREE.Vector3(0, 0, 0));
 
-// 3.02.04
-for (let cx = -worldSize; cx <= worldSize; cx++) {
-    for (let cz = -worldSize; cz <= worldSize; cz++) {
-        generateChunk(cx, cz);
-    }
-}
-// - - - >> 3.02 - ended section 3
-
-// - - - >> 4.00 - Lighting, Materials, and Post-Processing
-
-// 4.00.00
+// - - - >> 3.00 - Lighting, Materials, and Post-Processing
+// 3.00.00
 const ambientLight = new THREE.AmbientLight(0x4a008a, 0.5);
 scene.add(ambientLight);
-
-// 4.00.01
+// 3.00.01
 const directionalLight = new THREE.DirectionalLight(0x8A2BE2, 0.8);
 directionalLight.position.set(50, 100, 50);
 directionalLight.castShadow = true;
@@ -148,28 +109,22 @@ directionalLight.shadow.camera.right = 100;
 directionalLight.shadow.camera.top = 100;
 directionalLight.shadow.camera.bottom = -100;
 scene.add(directionalLight);
-
-// 4.00.02
+// 3.00.02
 const neonGlowLight = new THREE.PointLight(0x00FFFF, 1, 50);
 neonGlowLight.position.set(0, 20, 0);
 scene.add(neonGlowLight);
-
-// 4.00.03
+// 3.00.03
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-// - - - >> 4.00 - ended section 4
 
-// - - - >> 5.00 - Inventory System UI and Logic
-
-// 5.00.00
+// - - - >> 4.00 - Inventory System UI and Logic
+// 4.00.00
 const inventory = Array(12).fill(null);
 let activeSlot = 0;
-
-// 5.00.01
+// 4.00.01
 const inventoryUI = document.getElementById('inventory-ui');
 const inventoryToggleButton = document.getElementById('inventory-toggle');
-
-// 5.00.02
+// 4.00.02
 const inventorySlots = [];
 for (let i = 0; i < 12; i++) {
     const slot = document.createElement('div');
@@ -177,20 +132,16 @@ for (let i = 0; i < 12; i++) {
     slot.dataset.slotIndex = i;
     inventoryUI.appendChild(slot);
     inventorySlots.push(slot);
-
-    // 5.00.03
     slot.addEventListener('click', () => {
         selectSlot(parseInt(slot.dataset.slotIndex));
     });
 }
-
-// 5.00.04
+// 4.00.03
 inventoryToggleButton.addEventListener('click', () => {
     const isVisible = inventoryUI.style.display === 'grid';
     inventoryUI.style.display = isVisible ? 'none' : 'grid';
 });
-
-// 5.00.05
+// 4.00.04
 function updateInventoryUI() {
     inventorySlots.forEach((slotElement, index) => {
         if (index === activeSlot) {
@@ -202,49 +153,40 @@ function updateInventoryUI() {
         }
     });
 }
-
-// 5.00.06
+// 4.00.05
 function selectSlot(index) {
     activeSlot = index;
     updateInventoryUI();
 }
 updateInventoryUI();
-// - - - >> 5.00 - ended section 5
 
-// - - - >> 6.09 - Phone Controls and Input
-
-// 6.09.00
+// - - - >> 5.00 - Phone Controls and Input
+// 5.00.00
 const player = {
-    height: 8,
-    speed: 0.17,
-    rotationSpeed: 0.002,
-    jetpackSpeed: 0.2,
-    jetpackAcceleration: 0.005,
-    position: new THREE.Vector3(0, 10, 0),
+    height: 5,
+    speed: 0.5,
+    rotationSpeed: 0.005,
+    jetpackSpeed: 1.0,
+    jetpackAcceleration: 0.05,
+    jumpVelocity: 1.5,
+    position: new THREE.Vector3(0, testPlanet.radius + 5, 0),
     velocity: new THREE.Vector3(),
     isGrounded: false
 };
-
-// 6.09.01
-camera.position.copy(player.position).add(new THREE.Vector3(0, player.height, 0));
+// 5.00.01
+camera.position.copy(player.position);
 const moveJoystick = document.getElementById('move-joystick');
 const lookJoystick = document.getElementById('look-joystick');
-
-// 6.09.02
 let moveJoystickActive = false;
 let lookJoystickActive = false;
 let moveTouch = new THREE.Vector2(0, 0);
 let lookTouch = new THREE.Vector2(0, 0);
 let threeFingerSwipeStart = null;
-
-// 6.09.03
 const moveJoystickCenter = new THREE.Vector2(0, 0);
 const lookJoystickCenter = new THREE.Vector2(0, 0);
-
-// 6.09.04
 let zoomEnabled = true;
 
-// 6.09.05
+// 5.00.02
 window.addEventListener('touchstart', (event) => {
     if (event.touches.length === 3) {
         threeFingerSwipeStart = {
@@ -259,8 +201,6 @@ window.addEventListener('touchstart', (event) => {
         const touch = event.touches[i];
         const target = touch.target;
         const rect = target.getBoundingClientRect();
-
-        // 6.09.06
         if (target === moveJoystick) {
             moveJoystickActive = true;
             moveJoystickCenter.set(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -272,8 +212,7 @@ window.addEventListener('touchstart', (event) => {
         }
     }
 }, { passive: false });
-
-// 6.09.07
+// 5.00.03
 window.addEventListener('touchend', (event) => {
     moveJoystickActive = false;
     lookJoystickActive = false;
@@ -292,11 +231,9 @@ window.addEventListener('touchend', (event) => {
         threeFingerSwipeStart = null;
     }
 });
-
-// 6.09.08
+// 5.00.04
 window.addEventListener('touchmove', (event) => {
     if (threeFingerSwipeStart) {
-        // Prevent default zoom behavior during swipe
         event.preventDefault();
     }
     if (!zoomEnabled) {
@@ -310,14 +247,20 @@ window.addEventListener('touchmove', (event) => {
         lookTouch.set(touch.clientX, touch.clientY);
     }
 }, { passive: false });
-// - - - >> 6.09 - ended section 6
+// 5.00.05 - Jump button listener
+const jumpButton = document.getElementById('zoom-toggle'); // Reusing the zoom button for jump for now
+jumpButton.addEventListener('click', () => {
+    if (player.isGrounded) {
+        // Player jumps "up" relative to the planet's surface
+        const up = player.position.clone().sub(testPlanet.group.position).normalize();
+        player.velocity.add(up.multiplyScalar(player.jumpVelocity));
+        player.isGrounded = false;
+    }
+});
 
-// - - - >> 7.08 - Zoom Toggle Logic
-
-// 7.08.00
+// - - - >> 6.00 - Zoom Toggle Logic
+// 6.00.00
 const zoomToggleButton = document.getElementById('zoom-toggle');
-
-// 7.08.01
 function toggleZoom() {
     zoomEnabled = !zoomEnabled;
     document.documentElement.style.touchAction = zoomEnabled ? 'auto' : 'none';
@@ -327,161 +270,91 @@ function toggleZoom() {
         zoomToggleButton.classList.add('locked');
     }
 }
+// 6.00.01 - This is now the jump button, so it's handled in section 5.
 
-// 7.08.02
-zoomToggleButton.addEventListener('click', () => {
-    toggleZoom();
-});
-// - - - >> 7.08 - ended section 7
-
-// - - - >> 8.07 - Jetpack Controls
-
-// 8.07.00
+// - - - >> 7.00 - Jetpack and Jump Controls
+// 7.00.00
 const jetpackButton = document.getElementById('jetpack-button');
 let jetpackActive = false;
-
-// 8.07.01
 jetpackButton.addEventListener('touchstart', (event) => {
     event.preventDefault();
     jetpackActive = true;
 });
-
-// 8.07.02
+// 7.00.01
 jetpackButton.addEventListener('touchend', () => {
     jetpackActive = false;
 });
-// - - - >> 8.07 - ended section 8
 
-// - - - >> 9.09 - Game Loop and Rendering
-
-// 9.09.00
-const gravity = -0.05;
+// - - - >> 8.00 - Game Loop and Rendering
+// 8.00.00
+const gravityForce = 0.05;
 let lastTime = 0;
 
-// 9.09.01
+// 8.00.01
 function checkCollisions() {
-    const playerBBox = new THREE.Box3().setFromCenterAndSize(
-        player.position,
-        new THREE.Vector3(5, player.height, 5)
-    );
-    player.isGrounded = false;
-    let highestBlockUnderPlayer = -Infinity;
-
-    // 9.09.02
-    world.children.forEach(block => {
-        const blockBBox = new THREE.Box3().setFromObject(block);
-        const blockTopY = blockBBox.max.y;
-
-        // 9.09.03
-        // Check for horizontal collision with the player's next position
-        const nextPlayerBBox = playerBBox.clone().translate(player.velocity);
-        if (nextPlayerBBox.intersectsBox(blockBBox)) {
-            // Calculate overlap to determine which axis to stop movement on
-            const overlapX = Math.min(nextPlayerBBox.max.x, blockBBox.max.x) - Math.max(nextPlayerBBox.min.x, blockBBox.min.x);
-            const overlapZ = Math.min(nextPlayerBBox.max.z, blockBBox.max.z) - Math.max(nextPlayerBBox.min.z, blockBBox.min.z);
-
-            // 9.09.04
-            if (overlapX < overlapZ) {
-                player.velocity.x = 0;
-            } else {
-                player.velocity.z = 0;
-            }
-        }
-
-        // 9.09.05
-        // Check for blocks directly under the player to determine landing spot
-        const isPlayerAboveBlock =
-            player.position.x > blockBBox.min.x && player.position.x < blockBBox.max.x &&
-            player.position.z > blockBBox.min.z && player.position.z < blockBBox.max.z &&
-            blockTopY > highestBlockUnderPlayer;
-
-        // 9.09.06
-        if (isPlayerAboveBlock) {
-            highestBlockUnderPlayer = blockTopY;
-        }
-    });
-
-    // 9.09.07
-    // Vertical collision: if player is falling and below the highest block under them, land on it
-    if (player.velocity.y < 0 && player.position.y - player.height / 2 <= highestBlockUnderPlayer) {
-        player.position.y = highestBlockUnderPlayer + player.height / 2;
-        player.velocity.y = 0;
+    // Check if player is on the surface of the test planet
+    const playerRadialPosition = player.position.clone().sub(testPlanet.group.position);
+    const playerDistanceToCenter = playerRadialPosition.length();
+    const surfaceRadius = testPlanet.radius;
+    
+    // 8.00.02
+    if (playerDistanceToCenter - player.height / 2 <= surfaceRadius) {
+        player.position.copy(playerRadialPosition.normalize().multiplyScalar(surfaceRadius + player.height / 2).add(testPlanet.group.position));
+        player.velocity.set(0, 0, 0);
         player.isGrounded = true;
     }
-
-    // 9.09.08
-    const worldBounds = new THREE.Box3(
-        new THREE.Vector3(-worldSize * chunkSize * 5, -Infinity, -worldSize * chunkSize * 5),
-        new THREE.Vector3(worldSize * chunkSize * 5, Infinity, worldSize * chunkSize * 5)
-    );
-
-    // 9.09.09
-    if (!worldBounds.containsPoint(player.position)) {
-        player.position.clamp(worldBounds.min, worldBounds.max);
-    }
 }
-
-// 9.09.10
+// 8.00.03
 function animate(time) {
     requestAnimationFrame(animate);
     const deltaTime = (time - lastTime) / 1000;
     lastTime = time;
 
-    // 9.09.11
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    const moveDirection = new THREE.Vector3(0, 0, 0);
-
-    // 9.09.12
+    // 8.00.04
+    const up = player.position.clone().sub(testPlanet.group.position).normalize();
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    const right = new THREE.Vector3().crossVectors(forward, up).normalize();
+    
+    // 8.00.05
+    const moveDirection = new THREE.Vector3();
     if (moveJoystickActive) {
-        const joystickVector = new THREE.Vector2().subVectors(moveTouch, moveJoystickCenter);
-        joystickVector.normalize();
-
-        // 9.09.13
-        moveDirection.x = -forward.x * joystickVector.y * player.speed;
-        moveDirection.z = -forward.z * joystickVector.y * player.speed;
-        moveDirection.x += right.x * joystickVector.x * player.speed;
-        moveDirection.z += right.z * joystickVector.x * player.speed;
+        const joystickVector = new THREE.Vector2().subVectors(moveTouch, moveJoystickCenter).normalize();
+        moveDirection.add(right.clone().multiplyScalar(joystickVector.x));
+        moveDirection.add(forward.clone().multiplyScalar(joystickVector.y));
+        moveDirection.normalize().multiplyScalar(player.speed);
     }
+    // 8.00.06
+    player.position.add(moveDirection);
 
-    // 9.09.14
-    player.velocity.x = moveDirection.x;
-    player.velocity.z = moveDirection.z;
-
-    // 9.09.15
+    // 8.00.07
     if (lookJoystickActive) {
         const dx = lookTouch.x - lookJoystickCenter.x;
         const dy = lookTouch.y - lookJoystickCenter.y;
-
-        // 9.09.16
-        camera.rotation.y -= dx * player.rotationSpeed;
-        camera.rotation.x -= dy * player.rotationSpeed;
-
-        // 9.09.17
-        const verticalAngleLimit = THREE.MathUtils.degToRad(70);
-        camera.rotation.x = Math.max(-verticalAngleLimit, Math.min(verticalAngleLimit, camera.rotation.x));
+        camera.rotateOnAxis(up, -dx * player.rotationSpeed);
+        camera.rotateOnAxis(right, -dy * player.rotationSpeed);
+        // Ensure the camera doesn't go below the horizon
+        const tempQuaternion = new THREE.Quaternion().setFromUnitVectors(up, camera.up);
+        camera.quaternion.multiplyQuaternions(tempQuaternion, camera.quaternion);
     }
 
-    // 9.09.18
+    // 8.00.08
     if (jetpackActive) {
-      player.velocity.y += player.jetpackAcceleration;
-      if (player.velocity.y > player.jetpackSpeed) {
-        player.velocity.y = player.jetpackSpeed;
-      }
+        player.velocity.add(up.clone().multiplyScalar(player.jetpackAcceleration));
+        if (player.velocity.length() > player.jetpackSpeed) {
+            player.velocity.normalize().multiplyScalar(player.jetpackSpeed);
+        }
     } else {
-      player.velocity.y += gravity;
+        const gravity = up.clone().negate().multiplyScalar(gravityForce);
+        player.velocity.add(gravity);
     }
-
-    // 9.09.19
+    // 8.00.09
     player.position.add(player.velocity);
     checkCollisions();
     
-    // 9.09.20
-    camera.position.copy(player.position).add(new THREE.Vector3(0, player.height, 0));
+    // 8.00.10
+    camera.position.copy(player.position);
     renderer.render(scene, camera);
 }
 animate();
-// - - - >> 9.09 - ended section 9
 
 // https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
-
