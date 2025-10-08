@@ -1,206 +1,98 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimal AR Text Generator V7.0.0</title>
+    <title>AR Test V2.0</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            background-color: #3d312f; /* Dark Brown/Coffee Color */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            color: #d8c6b7;
-            text-align: center;
-        }
-        #header {
-            width: 100%;
-            padding: 1rem;
-            background-color: #5d3f6a; /* Richer Purple */
-            color: #ffcc66; /* Orange-Yellow accent */
-            font-size: 1.1rem;
-            font-weight: 700;
-        }
-        #content {
-            padding: 20px;
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        #usda-output {
-            width: 90%;
-            max-width: 400px;
-            height: 300px;
-            margin: 20px 0;
-            padding: 10px;
-            font-family: monospace;
-            background-color: #1a1a1a; /* Dark background for code */
-            color: #3CB371; /* Green text for code */
-            border: 1px solid #ffaa00; /* Orange border */
-            resize: none;
-            overflow: auto;
-            border-radius: 8px;
-        }
-        .btn {
-            background-color: #8A2BE2; /* Primary Purple */
-            color: white;
-            padding: 0.8rem 1.6rem;
-            border-radius: 10px;
-            font-weight: bold;
+        body { margin: 0; background-color: #212121; } /* Dark Mode background */
+        button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: #9370DB; /* Purple */
+            color: #212121;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
             cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            width: 90%;
-            max-width: 350px;
-            box-shadow: 0 4px #5e1a9e; 
-            border: 2px solid #ffaa00; 
+            border-radius: 8px; /* Rounded corners */
         }
-        .btn:active {
-            box-shadow: 0 2px #5e1a9e;
-            transform: translateY(2px);
-        }
-        #status-message {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 8px;
-            background-color: #334155;
-            color: #fff;
-            font-size: 0.9rem;
-            min-height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 90%;
-            max-width: 350px;
-        }
-        .instruction-text {
-            margin-top: 30px;
-            font-size: 0.95rem;
-            color: #ffcc66; /* Orange color for instructions */
+        .version-tag {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #9370DB; /* Purple */
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
-    <div id="header">Minimal AR Text Generator (V7.0.0)</div>
+    <div class="version-tag">V2.0 - AR Cube</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script type="module">
+        import { USDZExporter } from 'https://unpkg.com/three@0.128.0/examples/jsm/exporters/USDZExporter.js';
 
-    <div id="content">
-        <p class="instruction-text">
-            **Step 1:** Copy the code below, then move to **Step 2** (the converter).
-        </p>
+        // --- Step 1: Create the Scene and Geometry ---
+        const scene = new THREE.Scene();
+        scene.name = "CubeScene";
 
-        <textarea id="usda-output" readonly></textarea>
-
-        <button id="copy-button" class="btn">
-            Copy Code to Clipboard
-        </button>
-
-        <div id="status-message">USD Code Ready.</div>
-    </div>
-
-    <script>
-        const usdaContent = `#usda 1.0
-(
-    defaultPrim = "GreenBrick"
-)
-
-def Xform "GreenBrick"
-{
-    custom string[] apiSchemas = ["ARKitObjectAnchoringAPI"]
-    custom string[] arkitObjectAnchoring:types = ["planeAnchoring"]
-    
-    matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0.5, 0, 1) )
-    uniform token[] xformOp:valueOrder = ["xformOp:transform"]
-
-    def Mesh "Mesh"
-    {
-        rel material:binding = </GreenBrick/Material/GreenMat>
-        
-        # Simple cube vertices (8 vertices)
-        point3f[] points = [
-            (-0.25, -0.25, 0.25), (0.25, -0.25, 0.25), (0.25, 0.25, 0.25), (-0.25, 0.25, 0.25),
-            (-0.25, -0.25, -0.25), (0.25, -0.25, -0.25), (0.25, 0.25, -0.25), (-0.25, 0.25, -0.25)
-        ]
-        
-        # Indices for the faces
-        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
-        int[] faceVertexIndices = [
-            0, 1, 2, 3,  // +Z (Front)
-            1, 5, 6, 2,  // +X (Right)
-            5, 4, 7, 6,  // -Z (Back)
-            4, 0, 3, 7,  // -X (Left)
-            3, 2, 6, 7,  // +Y (Top)
-            4, 5, 1, 0   // -Y (Bottom)
-        ]
-
-        uniform token subdivisionScheme = "none"
-    }
-
-    def Material "Material"
-    {
-        def Shader "GreenMat"
-        {
-            uniform token info:id = "UsdPreviewSurface"
-            color3f inputs:diffuseColor = (0.23, 0.70, 0.44) # Medium Sea Green RGB (3CB371)
-            float inputs:metallic = 0.4
-            float inputs:roughness = 0.6
-            token outputs:surface
-        }
-    }
-}
-`;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const output = document.getElementById('usda-output');
-            output.value = usdaContent;
-
-            document.getElementById('copy-button').addEventListener('click', () => {
-                output.select();
-                document.execCommand('copy');
-                document.getElementById('status-message').textContent = 'Code Copied! Proceed to Step 2.';
-                document.getElementById('status-message').style.backgroundColor = '#3CB371';
-            });
+        // Material using preferred desert color (brown/orange-ish)
+        const desertColor = 0x986640; // Desert Brown/Orange
+        const material = new THREE.MeshPhysicalMaterial({
+            color: desertColor,
+            metalness: 0.1,
+            roughness: 0.8,
+            flatShading: true
         });
+
+        // Simple Cube Geometry (0.5m x 0.5m x 0.5m)
+        const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(0, 0.25, 0); // Lift it onto the floor (Y=0)
+        scene.add(cube);
+
+        // --- Step 2: USDZ Export Function ---
+        const exporter = new USDZExporter();
+
+        function exportUSDZ() {
+            // The exporter generates a binary ArrayBuffer
+            exporter.parse(scene).then((result) => {
+                const blob = new Blob([result], { type: 'application/octet-stream' });
+
+                // Download the file (this is where the USDZ is created in your browser)
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.href = URL.createObjectURL(blob);
+                link.download = 'SimpleCube_V2.usdz';
+                link.click();
+
+                document.body.removeChild(link);
+                alert("USDZ file downloaded. Host it with HTTPS to use Quick Look AR!");
+            });
+        }
+
+        // --- Step 3: Add the Button for Mobile ---
+        const exportButton = document.createElement('button');
+        exportButton.textContent = 'EXPORT USDZ';
+        exportButton.onclick = exportUSDZ;
+        document.body.appendChild(exportButton);
+        
+        // --- Optional: Basic WebGL renderer for visual check ---
+        const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 10 );
+        camera.position.z = 2;
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+
+        function animate() {
+            requestAnimationFrame( animate );
+            cube.rotation.x += 0.01;
+            cube.rotation.y += 0.01;
+            renderer.render( scene, camera );
+        }
+        animate();
     </script>
 </body>
 </html>
-```eof
-
----
-
-## The New Steps for AR Viewing
-
-You must use **Safari** on your iPhone for the final step, not the embedded browser, to ensure the converter works and the file downloads properly.
-
-### **Step 1: Get the Code**
-
-1.  View the **Minimal AR Text Generator (V7.0.0)** file.
-2.  Tap the **"Copy Code to Clipboard"** button. The status should change to **"Code Copied! Proceed to Step 2."**
-
-### **Step 2: Convert to USDZ Archive**
-
-1.  Open **Safari** (the full browser app) on your iPhone.
-2.  Go to a reliable online file converter. A good option is the **USDZ Converter** hosted by a major company, or a simple online tool. Let's use a standard, widely used converter for this.
-3.  **Create a New File:**
-    * Open your **Notes** app.
-    * Paste the code you copied.
-    * **Save the Note as a file** named `GreenBrick.usda` to your **Files** app. (Use the Share menu on the Note, then select "Save to Files").
-4.  **Upload and Convert:**
-    * Use your Safari browser to navigate to an online converter (e.g., search Google for an online **`USDZ converter`**).
-    * **Upload** the `GreenBrick.usda` file you just saved.
-    * **Download** the resulting **`GreenBrick.usdz`** file.
-
-### **Step 3: View in AR**
-
-1.  Go to your **Files** app.
-2.  Find the newly downloaded **`GreenBrick.usdz`**.
-3.  **Tap and hold** the file, then select **"Share"**.
-4.  Scroll down the actions list and select **"Quick Look"** (or use the **Notes** copy-paste trick).
-
-This process **guarantees a valid, properly formatted `.usdz` file**, finally bypassing the restrictions preventing the file from opening.
