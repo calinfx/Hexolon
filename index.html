@@ -3,9 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Test V2.0</title>
+    <title>AR Test V2.2</title>
     <style>
-        body { margin: 0; background-color: #212121; } /* Dark Mode background */
+        body { margin: 0; overflow: hidden; background-color: #000000; } /* Solid black background for the page */
+        canvas { display: block; }
         button {
             position: absolute;
             bottom: 20px;
@@ -16,7 +17,8 @@
             padding: 12px 20px;
             font-size: 16px;
             cursor: pointer;
-            border-radius: 8px; /* Rounded corners */
+            border-radius: 8px;
+            z-index: 10;
         }
         .version-tag {
             position: absolute;
@@ -24,20 +26,53 @@
             left: 10px;
             color: #9370DB; /* Purple */
             font-family: monospace;
+            z-index: 10;
         }
     </style>
 </head>
 <body>
-    <div class="version-tag">V2.0 - AR Cube</div>
+    <div class="version-tag">V2.2 - AR Cube</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script type="module">
         import { USDZExporter } from 'https://unpkg.com/three@0.128.0/examples/jsm/exporters/USDZExporter.js';
+        import { GridHelper } from 'https://unpkg.com/three@0.128.0/examples/jsm/helpers/GridHelper.js';
 
-        // --- Step 1: Create the Scene and Geometry ---
+        // --- Step 1: Scene, Renderer, and Camera Setup ---
         const scene = new THREE.Scene();
         scene.name = "CubeScene";
 
-        // Material using preferred desert color (brown/orange-ish)
+        // Set the background to a solid black for the "skybox" effect
+        scene.background = new THREE.Color( 0x000000 ); // Black
+
+        const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 10 );
+        camera.position.z = 1.5;
+        camera.position.y = 0.5;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        document.body.appendChild( renderer.domElement );
+        
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight( 0xffffff, 0.6 );
+        scene.add( ambientLight );
+
+        const directionalLight = new THREE.DirectionalLight( 0xffffff, 0.8 );
+        directionalLight.position.set( 1, 1, 1 );
+        scene.add( directionalLight );
+
+        // --- Step 2: Add Violet Grid ---
+        const size = 10; // Size of the grid (10x10 units)
+        const divisions = 10; // Number of divisions
+        const gridColor = 0x8A2BE2; // Violet color
+        const centerLineColor = 0x4B0082; // Darker violet for center lines
+
+        const gridHelper = new GridHelper( size, divisions, centerLineColor, gridColor );
+        // The grid helper is typically centered at Y=0, so the cube will sit on it.
+        scene.add( gridHelper );
+
+
+        // --- Step 3: Create the Geometry (Brown Cube) ---
         const desertColor = 0x986640; // Desert Brown/Orange
         const material = new THREE.MeshPhysicalMaterial({
             color: desertColor,
@@ -46,52 +81,46 @@
             flatShading: true
         });
 
-        // Simple Cube Geometry (0.5m x 0.5m x 0.5m)
         const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const cube = new THREE.Mesh(geometry, material);
-        cube.position.set(0, 0.25, 0); // Lift it onto the floor (Y=0)
+        cube.position.set(0, 0.25, 0); // Lift it onto the floor (Y=0), sitting on the grid
         scene.add(cube);
 
-        // --- Step 2: USDZ Export Function ---
+        // --- Step 4: Export Function (Unchanged) ---
         const exporter = new USDZExporter();
-
         function exportUSDZ() {
-            // The exporter generates a binary ArrayBuffer
             exporter.parse(scene).then((result) => {
                 const blob = new Blob([result], { type: 'application/octet-stream' });
-
-                // Download the file (this is where the USDZ is created in your browser)
                 const link = document.createElement('a');
                 link.style.display = 'none';
                 document.body.appendChild(link);
                 link.href = URL.createObjectURL(blob);
                 link.download = 'SimpleCube_V2.usdz';
                 link.click();
-
                 document.body.removeChild(link);
-                alert("USDZ file downloaded. Host it with HTTPS to use Quick Look AR!");
             });
         }
 
-        // --- Step 3: Add the Button for Mobile ---
+        // --- Step 5: Animation and Event Listeners ---
+        function animate() {
+            requestAnimationFrame( animate );
+            cube.rotation.y += 0.005;
+            renderer.render( scene, camera );
+        }
+
+        window.addEventListener( 'resize', onWindowResize, false );
+        function onWindowResize(){
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
+
+        // --- Step 6: Add the Button for Mobile ---
         const exportButton = document.createElement('button');
         exportButton.textContent = 'EXPORT USDZ';
         exportButton.onclick = exportUSDZ;
         document.body.appendChild(exportButton);
-        
-        // --- Optional: Basic WebGL renderer for visual check ---
-        const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 10 );
-        camera.position.z = 2;
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize( window.innerWidth, window.innerHeight );
-        document.body.appendChild( renderer.domElement );
 
-        function animate() {
-            requestAnimationFrame( animate );
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
-            renderer.render( scene, camera );
-        }
         animate();
     </script>
 </body>
